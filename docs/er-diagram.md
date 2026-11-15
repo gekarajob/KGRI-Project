@@ -94,11 +94,41 @@ erDiagram
     }
 ```
 
+## Table descriptions
+
+### USER
+
+Stores the accounts that can sign in to the portal. Each admin, lab technician, or field officer has a unique username, a password hash, and a role. The JWT carries the role. Protected routes check it and return `403` when the role lacks permission. `is_active` lets staff disable an account while keeping its links to participant registrations, sample registrations, phenotype captures, and audit events.
+
+### PARTICIPANT
+
+Stores the person’s name, age, sex, self-reported community, county, and recruitment site. PostgreSQL generates the public `KGRI-XXXX` identifier from a database sequence, and a unique constraint protects it from duplicates. Name, county, and recruitment site are indexed for search and filtering. The internal ID links the participant to their consent, samples, and phenotype records. Setting `deleted_at` hides the participant from active views while preserving those links and the audit history.
+
+### PARTICIPANT_CONSENT
+
+Stores the participant’s current choices for broad research, recontact for follow-up, and data sharing with named third parties. Each tier has a boolean and its own recorded timestamp. The participant ID is both the primary key and a foreign key, so a participant can have at most one consent row. The separate table supports consent-specific permissions and filters. A consent change creates a participant `UPDATE` audit event with the affected choices and timestamps in the diff.
+
+### SAMPLE
+
+Tracks a DNA, blood, or saliva sample from collection through lab processing and quality control. Each participant can provide several samples. The API checks each status change against the sample’s stored status. Platform, batch ID, CRAM/BAM path, and mean coverage stay empty until the sample reaches `sequenced`. Olink is a proteomics platform, so Olink records leave the CRAM/BAM path and mean coverage empty. The summary endpoint groups samples by status, platform, and the linked participant’s recruitment site.
+
+### STUDY
+
+Stores a unique code and name for each research study. The pilot seeds one row, `KGRI_BASELINE`. The study foreign key on phenotype records scopes CSV exports and lets the portal associate future records with another study using the same measurement fields.
+
+### PHENOTYPE_RECORD
+
+Stores one capture of height, weight, systolic and diastolic blood pressure, malaria history, livestock contact, and optional notes. Each record links to a participant, a study, and the staff user who captured it, with the date and time of capture. The API reports field-level validation errors. Database checks enforce the measurement ranges shown above, including systolic blood pressure from 60 to 250.
+
+### AUDIT_EVENT
+
+Stores an append-only history of creates, updates, and deletes on participants, samples, and phenotype records. Each event records the acting user, timestamp, action, entity type, entity ID, and a JSON diff of the changed fields. Only admins can view the log through the API, with filters by user, entity type, and date range using the indexed columns.
+
 ## Implementation notes
 
 - The two creator relationships make explicit the existing created_by_id foreign keys in the supplied diagram.
-- Study belongs in the phenotypes application. Seed KGRI_BASELINE for the pilot.
-- AuditEvent uses user_id as supplied. Its entity_id is a polymorphic identifier paired with entity_type. Consent changes are participant UPDATE events.
+- Study belongs in the phenotypes application.
+- An audit target is identified by the pair `entity_type` and `entity_id`.
 - Create a participant and its consent row in one transaction. The shared primary key enforces at most one consent row per participant.
 - Use PostgreSQL and framework migrations after supervisor sign-off. The existing database/schema.sql describes a different SQLite model and is outside this design.
 - Sample transitions follow collected > shipped > received_at_lab > dna_extracted > library_prepped > sequenced > qc_passed. Validate each transition against stored state.
