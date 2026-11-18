@@ -11,3 +11,9 @@ __pycache__/
 
 node_modules/
 frontend/dist/
+coverage.xml
+.coverage
+htmlcov/
+*.tsbuildinfo
+playwright-report/
+test-results/

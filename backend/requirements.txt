@@ -2,3 +2,6 @@ fastapi==0.163.1
 psycopg[binary]==3.3.9
 SQLAlchemy==2.1.8
 uvicorn==0.54.0
+alembic==1.16.5
+PyJWT==2.10.1
+argon2-cffi==25.1.0

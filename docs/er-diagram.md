@@ -1,6 +1,6 @@
 # KGRI database schema
 
-This is the Day 1 proposal for the seven PostgreSQL tables. All timestamps use PostgreSQL `timestamptz` and are handled as timezone-aware UTC values. Supervisor sign-off is pending.
+This is the approved seven-table PostgreSQL model. The project owner confirmed supervisor sign-off on 16 November 2026. All timestamps use PostgreSQL `timestamptz` and are handled as timezone-aware UTC values.
 
 [Original diagram](database-schema.png)
 
@@ -130,7 +130,7 @@ Stores an append-only history of creates, updates, and deletes on participants, 
 - An audit target is identified by the pair `entity_type` and `entity_id`.
 - Create a participant and its consent row in one transaction.
 - Define allowed transitions in one map. The sequence is `collected` → `shipped` → `received_at_lab` → `dna_extracted` → `library_prepped` → `sequenced` → `qc_passed`.
-- Apply every schema change through Alembic after supervisor sign-off. Add users first, then participants and consent on Day 2, samples on Day 5, and studies and phenotype records on Day 7. Include `audit_event` before exposing the first audited mutation.
+- Apply every schema change through Alembic. The initial migration creates the approved tables, sequence-backed ID function, and append-only audit trigger together before the first audited mutation is exposed.
 
 ## Questions for supervisor sign-off
 
