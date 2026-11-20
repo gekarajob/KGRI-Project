@@ -1,6 +1,6 @@
 # KGRI database schema
 
-This schema transcribes the diagram supplied by the project owner on 15 November 2026. Supervisor sign-off is pending confirmation.
+This is the approved seven-table PostgreSQL model. The project owner confirmed supervisor sign-off on 16 November 2026. All timestamps use PostgreSQL `timestamptz` and are handled as timezone-aware UTC values.
 
 [Original diagram](database-schema.png)
 
@@ -18,15 +18,15 @@ erDiagram
         bigint id PK
         string username UK
         string password_hash "bcrypt or Argon2"
-        string role "admin, lab_tech, field_officer"
+        string role "CHECK in admin, lab_tech, field_officer"
         boolean is_active
-        datetime created_at
+        timestamptz created_at
     }
     STUDY {
         bigint id PK
         string code UK "e.g. KGRI_BASELINE"
         string name
-        datetime created_at
+        timestamptz created_at
     }
     PARTICIPANT {
         bigint id PK
@@ -38,57 +38,57 @@ erDiagram
         string county "Indexed"
         string recruitment_site "Indexed"
         bigint created_by_id FK
-        datetime created_at
-        datetime updated_at
-        datetime deleted_at "Nullable, soft delete"
+        timestamptz created_at
+        timestamptz updated_at
+        timestamptz deleted_at "Nullable, soft delete"
     }
     PARTICIPANT_CONSENT {
         bigint participant_id PK,FK
         boolean broad_consent
-        datetime broad_consent_recorded_at "Nullable"
+        timestamptz broad_consent_recorded_at "Nullable"
         boolean recontact_consent
-        datetime recontact_consent_recorded_at "Nullable"
+        timestamptz recontact_consent_recorded_at "Nullable"
         boolean data_sharing_consent
-        datetime data_sharing_consent_recorded_at "Nullable"
-        datetime updated_at
+        timestamptz data_sharing_consent_recorded_at "Nullable"
+        timestamptz updated_at
     }
     SAMPLE {
         bigint id PK
         bigint participant_id FK "Indexed"
-        string sample_type "dna, blood, saliva"
-        string status "State machine, indexed"
-        string platform "Nullable, ultima_ug100, ont_promethion, pacbio, olink"
+        string sample_type "CHECK in dna, blood, saliva"
+        string status "CHECK in seven workflow states, indexed"
+        string platform "Nullable, CHECK in ultima_ug100, ont_promethion, pacbio, olink"
         string batch_id "Nullable"
         string sequencing_file_path "Nullable, CRAM or BAM path"
         decimal mean_coverage "Nullable, CHECK >= 0"
         bigint created_by_id FK
-        datetime created_at
-        datetime updated_at
-        datetime deleted_at "Nullable, soft delete"
+        timestamptz created_at
+        timestamptz updated_at
+        timestamptz deleted_at "Nullable, soft delete"
     }
     PHENOTYPE_RECORD {
         bigint id PK
         bigint participant_id FK "Indexed"
         bigint study_id FK "Indexed"
         bigint captured_by_id FK
-        datetime captured_at
+        timestamptz captured_at
         decimal height_cm "CHECK 50 to 250"
         decimal weight_kg "CHECK 10 to 300"
         decimal systolic_bp "CHECK 60 to 250"
         decimal diastolic_bp "CHECK 30 to 150"
         boolean malaria_history
         boolean livestock_contact
-        string notes "Nullable, max 500 chars"
-        datetime created_at
-        datetime updated_at
-        datetime deleted_at "Nullable, soft delete"
+        varchar(500) notes "Nullable"
+        timestamptz created_at
+        timestamptz updated_at
+        timestamptz deleted_at "Nullable, soft delete"
     }
     AUDIT_EVENT {
         bigint id PK
         bigint user_id FK "Indexed"
-        datetime occurred_at "Indexed"
-        string action "CREATE, UPDATE, DELETE"
-        string entity_type "participant, sample, phenotype; indexed"
+        timestamptz occurred_at "Indexed"
+        string action "CHECK in CREATE, UPDATE, DELETE"
+        string entity_type "participant, sample, phenotype, user; indexed"
         bigint entity_id
         json changed_fields "JSON diff of old and new"
     }
@@ -102,37 +102,39 @@ Stores the accounts that can sign in to the portal. Each admin, lab technician, 
 
 ### PARTICIPANT
 
-Stores the person’s name, age, sex, self-reported community, county, and recruitment site. PostgreSQL generates the public `KGRI-XXXX` identifier from a database sequence, and a unique constraint protects it from duplicates. Name, county, and recruitment site are indexed for search and filtering. The internal ID links the participant to their consent, samples, and phenotype records. Setting `deleted_at` hides the participant from active views while preserving those links and the audit history.
+Stores the person’s name, age, sex, self-reported community, county, and recruitment site. PostgreSQL generates the public `KGRI-XXXX` identifier from a database sequence, and a unique constraint protects it from duplicates. Name, county, and recruitment site are indexed for search and filtering. The internal ID links the participant to their consent, samples, and phenotype records. Setting `deleted_at` hides the participant from active views while preserving those links and the audit history. The API returns `409` if the participant has active samples.
 
 ### PARTICIPANT_CONSENT
 
-Stores the participant’s current choices for broad research, recontact for follow-up, and data sharing with named third parties. Each tier has a boolean and its own recorded timestamp. The participant ID is both the primary key and a foreign key, so a participant can have at most one consent row. The separate table supports consent-specific permissions and filters. A consent change creates a participant `UPDATE` audit event with the affected choices and timestamps in the diff.
+Stores the participant’s current choices for broad research, recontact for follow-up, and data sharing with named third parties. Each tier has a boolean and its own nullable recorded timestamp. The participant ID is both the primary key and a foreign key, so a participant can have at most one consent row. The separate table supports consent-specific permissions and filters. Toggling a consent flag sets its recorded timestamp and creates a participant `UPDATE` audit event with the changed choice and timestamp in the diff.
 
 ### SAMPLE
 
-Tracks a DNA, blood, or saliva sample from collection through lab processing and quality control. Each participant can provide several samples. The API checks each status change against the sample’s stored status. Platform, batch ID, CRAM/BAM path, and mean coverage stay empty until the sample reaches `sequenced`. Olink is a proteomics platform, so Olink records leave the CRAM/BAM path and mean coverage empty. The summary endpoint groups samples by status, platform, and the linked participant’s recruitment site.
+Tracks a DNA, blood, or saliva sample from collection through lab processing and quality control. Each participant can provide several samples. The database restricts the stored status to the seven workflow states. The API checks each change against the current state and returns `400` with the current and allowed next states for an invalid transition. Platform, batch ID, CRAM/BAM path, and mean coverage are nullable and optional until sequencing. Olink is a proteomics platform, so Olink records leave the CRAM/BAM path and mean coverage empty. The summary endpoint joins to the participant and returns counts by status, platform, and recruitment site.
 
 ### STUDY
 
-Stores a unique code and name for each research study. The pilot seeds one row, `KGRI_BASELINE`. The study foreign key on phenotype records scopes CSV exports and lets the portal associate future records with another study using the same measurement fields.
+Stores a name and a unique code for each research study. The pilot seeds one row, `KGRI_BASELINE`. The study foreign key on phenotype records scopes CSV exports and lets the portal associate future records with another study using the same measurement fields.
 
 ### PHENOTYPE_RECORD
 
-Stores one capture of height, weight, systolic and diastolic blood pressure, malaria history, livestock contact, and optional notes. Each record links to a participant, a study, and the staff user who captured it, with the date and time of capture. The API reports field-level validation errors. Database checks enforce the measurement ranges shown above, including systolic blood pressure from 60 to 250.
+Stores one capture of height, weight, systolic and diastolic blood pressure, malaria history, livestock contact, and optional notes. Each record links to a participant, a study, and the staff user who captured it, with the date and time of capture. Database checks enforce the measurement ranges shown above. The API reports the field and allowed range for out-of-range values and rejects systolic values less than or equal to diastolic. The CSV export uses the study foreign key and can filter by the participant’s recruitment site.
 
 ### AUDIT_EVENT
 
-Stores an append-only history of creates, updates, and deletes on participants, samples, and phenotype records. Each event records the acting user, timestamp, action, entity type, entity ID, and a JSON diff of the changed fields. Only admins can view the log through the API, with filters by user, entity type, and date range using the indexed columns.
+Stores an append-only history of creates, updates, and deletes on participants, samples, and phenotype records, plus Admin account creation and changes to usernames, roles and active status. Each event records the acting user, timestamp, action, entity type, entity ID, and a JSON diff of the changed fields. A soft delete logs a `DELETE` event, and the mutation and event commit together. Password hashes are excluded from audit diffs. Only admins can view the paginated log through the API, with filters by user, entity type, and date range using the indexed columns.
 
 ## Implementation notes
 
-- The two creator relationships make explicit the existing created_by_id foreign keys in the supplied diagram.
-- Study belongs in the phenotypes application.
+- Both creator relationships correspond to `created_by_id` foreign keys. Study belongs in the phenotypes module.
 - An audit target is identified by the pair `entity_type` and `entity_id`.
-- Create a participant and its consent row in one transaction. The shared primary key enforces at most one consent row per participant.
-- Use PostgreSQL and framework migrations after supervisor sign-off. The existing database/schema.sql describes a different SQLite model and is outside this design.
-- Sample transitions follow collected > shipped > received_at_lab > dna_extracted > library_prepped > sequenced > qc_passed. Validate each transition against stored state.
-- Write mutation audit events in the same transaction as their record changes.
-- Preserve the supplied nullable consent timestamps. Confirm boolean defaults and the meaning of an unrecorded timestamp before implementation.
-- Confirm string lengths, decimal precision, allowed sex values, age semantics, identifier behavior above 9999, and deletion behavior for linked records before migrations.
-- Django may expose the password hash through its standard password attribute while mapping the database column to password_hash. Final auth model mapping remains an implementation decision.
+- Create a participant and its consent row in one transaction.
+- Define allowed transitions in one map. The sequence is `collected` → `shipped` → `received_at_lab` → `dna_extracted` → `library_prepped` → `sequenced` → `qc_passed`.
+- Apply every schema change through Alembic. The initial migration creates the approved tables, sequence-backed ID function, and append-only audit trigger together before the first audited mutation is exposed.
+
+## Questions for supervisor sign-off
+
+- Which consent boolean defaults should apply before a choice is recorded, and should withdrawal affect existing samples, research use, or future CSV exports?
+- Does an active sample mean any sample with `deleted_at` unset? What should happen to linked phenotype records when a participant is soft-deleted?
+- Must `KGRI-XXXX` stay exactly four digits? What should the sequence do when it reaches 9999?
+- Should `age` mean age at enrolment? Confirm the allowed sex values, string lengths, and measurement precision.

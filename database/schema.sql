@@ -1,0 +1,8 @@
+-- The earlier organizations/memberships SQLite draft has been superseded.
+-- The authoritative PostgreSQL schema is versioned in:
+--   backend/migrations/versions/ (0001 portal schema; 0002 user audit events)
+-- Apply it with: docker compose exec api alembic upgrade head
+-- Inspect SQL without applying changes with:
+--   docker compose exec api alembic upgrade head --sql
+-- See docs/er-diagram.md for the approved seven-entity model.
+-- Keep schema changes in Alembic migrations; do not execute this file as a migration.
