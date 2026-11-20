@@ -50,7 +50,7 @@ export function AuditLog() {
             <h2>
               Activity history <span className="count-tag">{result.data?.total ?? '—'}</span>
             </h2>
-            <p>Participant, sample, and phenotype mutations</p>
+            <p>Participant, sample, phenotype, and user account changes</p>
           </div>
         </div>
         <div className="filters">
@@ -72,9 +72,9 @@ export function AuditLog() {
             onChange={(event) => filter(setEntity, event.target.value)}
           >
             <option value="">All record types</option>
-            {['participant', 'sample', 'phenotype'].map((value) => (
+            {['participant', 'sample', 'phenotype', 'user'].map((value) => (
               <option value={value} key={value}>
-                {label(value)}
+                {value === 'user' ? 'User account' : label(value)}
               </option>
             ))}
           </select>

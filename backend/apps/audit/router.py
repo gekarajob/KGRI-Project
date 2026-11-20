@@ -17,7 +17,7 @@ def list_audit_events(
     db: Annotated[Session, Depends(get_db)],
     _: Annotated[User, Depends(require_roles("admin"))],
     user_id: Annotated[int | None, Query(gt=0)] = None,
-    entity_type: Literal["participant", "sample", "phenotype"] | None = None,
+    entity_type: Literal["participant", "sample", "phenotype", "user"] | None = None,
     date_from: date | None = None,
     date_to: date | None = None,
     page: Annotated[int, Query(ge=1)] = 1,

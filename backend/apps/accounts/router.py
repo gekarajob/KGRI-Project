@@ -8,7 +8,8 @@ from sqlalchemy.orm import Session
 
 from apps.accounts.dependencies import current_user, require_roles
 from apps.accounts.security import create_access_token, hash_password, verify_password
-from apps.accounts.service import lock_account_mutations, protect_admin_access
+from apps.accounts.service import account_snapshot, lock_account_mutations, protect_admin_access
+from apps.audit.service import record_audit
 from config.database import get_db
 from config.models import User
 
@@ -107,7 +108,7 @@ def register(
     actor: Annotated[User, Depends(require_roles("admin"))],
 ) -> User:
     password_hash = hash_password(payload.password)
-    lock_account_mutations(db, actor.id)
+    actor = lock_account_mutations(db, actor.id)
     user = User(
         username=payload.username,
         password_hash=password_hash,
@@ -116,7 +117,7 @@ def register(
     )
     db.add(user)
     try:
-        db.commit()
+        db.flush()
     except IntegrityError:
         db.rollback()
         raise HTTPException(
@@ -127,6 +128,8 @@ def register(
                 "field": "username",
             },
         ) from None
+    record_audit(db, actor.id, "CREATE", "user", user.id, {}, account_snapshot(user))
+    db.commit()
     db.refresh(user)
     return user
 
@@ -157,10 +160,11 @@ def update_user(
     protect_admin_access(
         db, actor, user, changes.get("role", user.role), changes.get("is_active", user.is_active)
     )
+    before = account_snapshot(user)
     for field, value in changes.items():
         setattr(user, field, value)
     try:
-        db.commit()
+        db.flush()
     except IntegrityError:
         db.rollback()
         raise HTTPException(
@@ -171,5 +175,9 @@ def update_user(
                 "field": "username",
             },
         ) from None
+    after = account_snapshot(user)
+    if before != after:
+        record_audit(db, actor.id, "UPDATE", "user", user.id, before, after)
+    db.commit()
     db.refresh(user)
     return user

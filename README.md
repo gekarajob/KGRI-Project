@@ -45,7 +45,7 @@ Nginx serves the production React build and proxies `/api` to FastAPI. Only the 
 
 The Nginx content security policy permits FastAPI's CDN assets and inline initialization only on `/api/docs` and `/api/redoc`. The portal screens and other API routes retain the stricter policy. The interactive documentation needs internet access to download those UI assets.
 
-Participant, sample and phenotype mutations write their audit diff in the same database transaction. Database constraints validate ranges and foreign keys; a PostgreSQL trigger rejects audit updates and deletes. Search uses ORM parameters and escaped wildcard characters. Access logging is disabled so search query strings do not appear in routine server logs.
+Participant, sample, phenotype and Admin account mutations write their audit diff in the same database transaction. Account events record the acting Admin, target account ID, and changes to username, role and active status; passwords and password hashes are excluded. Database constraints validate ranges and foreign keys; a PostgreSQL trigger rejects audit updates and deletes. Search uses ORM parameters and escaped wildcard characters. Access logging is disabled so search query strings do not appear in routine server logs.
 
 ## Permissions
 
@@ -64,7 +64,7 @@ Registration is admin-only. The seed command bootstraps the first admin. A lab t
 
 Under **Team accounts**, Admins can create accounts, edit usernames and roles, and confirm deactivation or reactivation. Deactivation preserves the account and its historical references. Inactive accounts cannot sign in or use authenticated API routes. Admins cannot deactivate themselves or change their own Admin role, and at least one active Admin must remain. Account API writes acquire a PostgreSQL transaction advisory lock and recheck the acting Admin after waiting, protecting concurrent changes. Username conflicts return `409`.
 
-Role changes require a new sign-in while an existing token carries the former role. Account activation is checked on every request; reactivation can make an unexpired earlier token usable again if its role still matches. This build has no permanent token-revocation store or password-reset workflow. Account administration is separate from the current participant/sample/phenotype audit scope.
+Role changes require a new sign-in while an existing token carries the former role. Account activation is checked on every request; reactivation can make an unexpired earlier token usable again if its role still matches. This build has no permanent token-revocation store or password-reset workflow. Account creation, username and role changes, deactivation and reactivation appear in the audit log under **User account**. Failed requests and edits that leave all account values unchanged add no event. Account history begins when this audit support is deployed; earlier account changes cannot be reconstructed from existing audit data.
 
 ## API summary
 
@@ -89,7 +89,7 @@ All domain routes below start with `/api`. Protected routes require `Authorizati
 | `/audit` | GET | Admin log, filtered by actor/entity/date |
 | `/health`, `/health/ready` (no `/api` prefix) | GET | Process and database readiness |
 
-Participant filters: `search`, `county`, `site`, and any of `broad_consent`, `recontact_consent`, `data_sharing_consent` as booleans. Sample filters: `participant_id`, `status`, `platform`, `site`. Phenotype filters: `participant_id`, `study_id`, `site`. Audit filters: `user_id`, `entity_type`, `date_from`, `date_to` with inclusive ISO dates.
+Participant filters: `search`, `county`, `site`, and any of `broad_consent`, `recontact_consent`, `data_sharing_consent` as booleans. Sample filters: `participant_id`, `status`, `platform`, `site`. Phenotype filters: `participant_id`, `study_id`, `site`. Audit filters: `user_id` (acting user), `entity_type` (`participant`, `sample`, `phenotype` or `user`), `date_from`, `date_to` with inclusive ISO dates.
 
 Errors consistently return `{error:{code,message,field?,allowed?,details?}}`. The status codes distinguish unauthenticated `401`, forbidden `403`, missing `404`, invalid transition `400`, conflict `409`, and validation `422`. Validation errors omit submitted input values.
 

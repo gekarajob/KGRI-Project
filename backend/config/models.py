@@ -195,7 +195,7 @@ class AuditEvent(Base):
     __table_args__ = (
         CheckConstraint("action IN ('CREATE', 'UPDATE', 'DELETE')", name="action"),
         CheckConstraint(
-            "entity_type IN ('participant', 'sample', 'phenotype')", name="entity_type"
+            "entity_type IN ('participant', 'sample', 'phenotype', 'user')", name="entity_type"
         ),
     )
 

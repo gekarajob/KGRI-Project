@@ -48,7 +48,7 @@ The API accepts only the next state listed in `TRANSITIONS` and locks the sample
 
 ## Draft · Commit audit events with domain changes
 
-An audit diff is added to the same SQLAlchemy session as the participant, sample or phenotype mutation, followed by one commit. A failed audit write rolls back the domain change. A PostgreSQL trigger rejects audit UPDATE and DELETE operations rather than relying solely on a read-only endpoint.
+An audit diff is added to the same SQLAlchemy session as the participant, sample, phenotype or Admin account mutation, followed by one commit. A failed audit write rolls back the change. A PostgreSQL trigger rejects audit UPDATE and DELETE operations rather than relying solely on a read-only endpoint.
 
 ## Draft · Generate identifiers with a PostgreSQL sequence
 

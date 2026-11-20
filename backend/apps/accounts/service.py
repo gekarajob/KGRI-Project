@@ -10,6 +10,10 @@ ACCOUNT_LOCK_NAMESPACE = 0x4B475249
 ACCOUNT_LOCK_KEY = 1
 
 
+def account_snapshot(user: User) -> dict[str, str | bool]:
+    return {"username": user.username, "role": user.role, "is_active": user.is_active}
+
+
 def lock_account_mutations(db: Session, actor_id: int) -> User:
     db.execute(select(func.pg_advisory_xact_lock(ACCOUNT_LOCK_NAMESPACE, ACCOUNT_LOCK_KEY)))
     # Authentication ran before acquiring the lock. Another admin may have revoked

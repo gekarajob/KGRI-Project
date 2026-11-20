@@ -88,7 +88,7 @@ erDiagram
         bigint user_id FK "Indexed"
         timestamptz occurred_at "Indexed"
         string action "CHECK in CREATE, UPDATE, DELETE"
-        string entity_type "participant, sample, phenotype; indexed"
+        string entity_type "participant, sample, phenotype, user; indexed"
         bigint entity_id
         json changed_fields "JSON diff of old and new"
     }
@@ -122,7 +122,7 @@ Stores one capture of height, weight, systolic and diastolic blood pressure, mal
 
 ### AUDIT_EVENT
 
-Stores an append-only history of creates, updates, and deletes on participants, samples, and phenotype records. Each event records the acting user, timestamp, action, entity type, entity ID, and a JSON diff of the changed fields. A soft delete logs a `DELETE` event, and the mutation and event commit together. Password hashes are excluded from audit diffs. Only admins can view the paginated log through the API, with filters by user, entity type, and date range using the indexed columns.
+Stores an append-only history of creates, updates, and deletes on participants, samples, and phenotype records, plus Admin account creation and changes to usernames, roles and active status. Each event records the acting user, timestamp, action, entity type, entity ID, and a JSON diff of the changed fields. A soft delete logs a `DELETE` event, and the mutation and event commit together. Password hashes are excluded from audit diffs. Only admins can view the paginated log through the API, with filters by user, entity type, and date range using the indexed columns.
 
 ## Implementation notes
 

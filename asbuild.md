@@ -77,7 +77,7 @@ The selected ER model was translated into seven PostgreSQL tables after the mode
 
 The shared key on `participant_consents` permits at most one consent row per participant. The registration transaction creates the participant and its consent row together. Each sample and phenotype record references an existing participant. Each phenotype also references an existing study and capturing user.
 
-An audit event identifies its affected record through `entity_type` and `entity_id`. That pair is an application-managed reference; `entity_id` is not a foreign key to all three domain tables.
+An audit event identifies its affected record through `entity_type` and `entity_id`. That pair is an application-managed reference; targets can be participants, samples, phenotype records or user accounts.
 
 The design also established soft deletion through `deleted_at`, restricted foreign-key deletion, UTC timestamps, range checks and indexes for common lookups.
 
@@ -251,7 +251,7 @@ The domain route adds the change and its audit event before one commit. `record_
 
 [backend/apps/audit/router.py](backend/apps/audit/router.py) exposes an Admin-only, paginated `GET /api/audit` endpoint. Filters select actor, entity type and inclusive UTC date boundaries. API date parameters use `YYYY-MM-DD`.
 
-The database trigger enforces append-only audit rows for ordinary `UPDATE` and `DELETE` operations. Events describe participant, sample and phenotype mutations. Account creation and CSV reads are outside the current domain-audit scope.
+The database trigger enforces append-only audit rows for ordinary `UPDATE` and `DELETE` operations. Events describe participant, sample, phenotype and Admin account mutations. Account creation uses `CREATE`; username, role and active-status changes use `UPDATE` with the acting Admin and target account ID. Passwords and password hashes are excluded. Unchanged account edits and failed requests add no event. Migration `0002` adds user accounts to the audit entity constraint. CSV reads remain outside the audit scope.
 
 ## 10. Implement participant registration and consent
 
